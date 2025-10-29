@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Folgo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="left">
+        <h2>📸 Source</h2>
+
+        <!-- Settings (select folders) -->
+        <div class="settings horizontal">
+          <div class="field">
+            <label for="srcInput">Source</label>
+            <div class="input-group">
+              <input id="srcInput" type="text" placeholder="/path/to/source" readonly />
+              <button id="browseSrc" class="secondary">Browse…</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="destInput">Destination</label>
+            <div class="input-group">
+              <input id="destInput" type="text" placeholder="/path/to/dest" readonly />
+              <button id="browseDest" class="secondary">Browse…</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="source-panel">
+          <div id="thumbList"></div>
+          <div id="preview"></div>
+        </div>
+
+        <!-- Counter only -->
+        <div class="pager">
+          <span id="pageInfo">📷 0 / 0</span>
+        </div>
+      </section>
+
+      <section class="right">
+        <h2>🗂️ Destination Tree</h2>
+        <button id="refreshTree">Refresh</button>
+        <div id="tree"></div>
+      </section>
+    </main>
+
+    <!-- Folder Browser Modal -->
+    <div id="folderModal" class="modal" hidden>
+      <div class="modal-card">
+        <div class="modal-head">
+          <strong id="modalPath"></strong>
+          <div class="modal-actions">
+            <button id="upDir" class="secondary">Up</button>
+            <button id="closeModal" class="secondary">✕</button>
+          </div>
+        </div>
+        <ul id="dirList"></ul>
+        <div class="modal-foot">
+          <button id="chooseDir">Choose this folder</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,251 @@
+/* Base */
+body {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  margin: 0;
+  background: #f7f7f8;
+  color: #222;
+}
+
+.layout {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  padding: 16px;
+}
+
+.left,
+.right {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.left { flex: 3; }
+.right { flex: 2; }
+
+h2 {
+  margin: 0 0 8px 0;
+  font-size: 1.1rem;
+}
+
+/* Settings bar */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 8px 0 16px;
+}
+
+/* Version horizontale : deux blocs côte à côte */
+.settings.horizontal {
+  flex-direction: row;
+  gap: 16px;
+  align-items: flex-end;  /* aligne les boutons Browse */
+  flex-wrap: wrap;        /* empêche l'écrasement sur petit écran */
+}
+
+/* Bloc individuel (Source / Destination) */
+.field {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 280px;
+}
+
+/* Label */
+.field label {
+  font-size: 0.9rem;
+  color: #333;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+/* Groupe input + bouton Browse */
+.input-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Champ input */
+.input-group input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  outline: none;
+  background: #f1f3f5;
+  color: #60636b;
+  cursor: default;
+}
+
+/* Effet focus si jamais tu changes le readonly plus tard */
+.input-group input:focus {
+  border-color: #007aff55;
+  box-shadow: 0 0 0 3px #007aff22;
+}
+
+/* Buttons */
+button {
+  background: #007aff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+button.secondary {
+  background: #e9eef6;
+  color: #0b1426;
+}
+
+button:hover { filter: brightness(0.95); }
+
+
+button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Source panel */
+.source-panel {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+#thumbList {
+  display: flex;
+  flex-direction: column;
+  width: 160px;
+  max-height: 70vh;
+  overflow-y: auto;
+  border-right: 1px solid #eee;
+  padding-right: 8px;
+}
+
+#thumbList img {
+  width: 100%;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.8;
+  margin-bottom: 6px;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+#thumbList img:hover {
+  transform: scale(1.02);
+  opacity: 1;
+}
+
+#thumbList img.active {
+  border: 2px solid #007aff;
+  opacity: 1;
+}
+
+/* Preview */
+#preview img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin-top: 8px;
+  transition: opacity 0.3s ease-in-out;
+}
+
+#preview figcaption {
+  font-size: 0.9rem;
+  color: #555;
+  margin-top: 4px;
+}
+
+/* Pager (counter only) */
+.pager {
+  text-align: center;
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+/* Tree */
+#tree ul {
+  list-style: none;
+  padding-left: 16px;
+  margin: 0;
+}
+
+#tree li { margin: 2px 0; }
+#tree strong { color: #333; }
+
+/* Modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  min-width: 520px;
+  max-width: 80vw;
+  max-height: 75vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 28px rgba(0,0,0,.18);
+}
+
+.modal-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-actions { display: flex; gap: 8px; }
+
+#dirList {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  overflow: auto;
+  border: 1px solid #eee;
+  border-radius: 8px;
+}
+
+#dirList li {
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+#dirList li:hover { background: #f6f8fb; }
+#dirList li::before { content: "📁"; margin-right: 6px; }
+
+.modal[hidden] {
+  display: none !important;
+}
+
+
+input[readonly] {
+  background: #f1f3f5;
+  color: #60636b;
+  cursor: default;
+}
+
+#tree.updating {
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+#tree:not(.updating) {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
