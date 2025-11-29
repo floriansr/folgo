@@ -31,8 +31,8 @@
         </div>
 
         <div class="source-panel">
-          <div id="thumbList"></div>
-          <div id="preview"></div>
+          <div id="thumbList" aria-label="Thumbnails" role="list"></div>
+          <div id="preview" aria-live="polite"></div>
         </div>
 
         <!-- Counter only -->
@@ -43,9 +43,15 @@
 
       <section class="right">
         <h2>🗂️ Destination Tree</h2>
-        <button id="refreshTree">Refresh</button>
+        <div class="actions-row">
+          <button id="refreshTree">Refresh</button>
+          <button id="copyBtn" disabled>Copier</button>
+        </div>
         <div id="tree"></div>
       </section>
+
+      <!-- Toast -->
+      <div id="toast" class="toast" hidden></div>
     </main>
 
     <!-- Folder Browser Modal -->

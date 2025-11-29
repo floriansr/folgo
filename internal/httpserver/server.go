@@ -185,11 +185,11 @@ func New(tokenPath string) *http.ServeMux {
 		root := state.DestRoot
 		state.mu.RUnlock()
 
-		// Permettre la preview d'un autre root: /tree?root=/path/to/preview
 		if override := r.URL.Query().Get("root"); override != "" {
-			// (Optionnel: sécuriser/normaliser le chemin ici)
-			if st, err := os.Stat(override); err == nil && st.IsDir() {
-				root = override
+			oAbs, _ := filepath.Abs(override)
+			rAbs, _ := filepath.Abs(root)
+			if strings.HasPrefix(oAbs+string(os.PathSeparator), rAbs+string(os.PathSeparator)) {
+				root = oAbs
 			} else {
 				http.Error(w, "invalid preview root", http.StatusBadRequest)
 				return
@@ -211,34 +211,39 @@ func New(tokenPath string) *http.ServeMux {
 		root := state.SourceDir
 		state.mu.RUnlock()
 
-		// Query param ?path=...
-		path := r.URL.Query().Get("path")
-		if path == "" {
+		p := r.URL.Query().Get("path")
+		if p == "" {
 			http.Error(w, "missing path", http.StatusBadRequest)
 			return
 		}
 
-		// Clean and resolve the absolute path
-		abs, err := filepath.Abs(path)
+		abs, err := filepath.Abs(p)
 		if err != nil {
 			http.Error(w, "invalid path", http.StatusBadRequest)
 			return
 		}
+		// Normalize both paths + resolve symlinks
+		rootAbs, _ := filepath.Abs(root)
+		if rootAbs == "" {
+			http.Error(w, "server misconfig", http.StatusInternalServerError)
+			return
+		}
+		abs, _ = filepath.EvalSymlinks(abs)
+		rootAbs, _ = filepath.EvalSymlinks(rootAbs)
 
-		// Security: ensure the file is inside SourceDir
-		if !strings.HasPrefix(abs, root) {
+		sep := string(os.PathSeparator)
+		prefix := rootAbs + sep
+		if !strings.HasPrefix(abs+sep, prefix) { // +sep handles exact-dir matches safely
 			http.Error(w, "access denied", http.StatusForbidden)
 			return
 		}
 
-		// Ensure it exists and is a regular file
 		st, err := os.Stat(abs)
 		if err != nil || st.IsDir() {
 			http.Error(w, "file not found", http.StatusNotFound)
 			return
 		}
 
-		// Guess MIME type (e.g., image/jpeg)
 		buf := make([]byte, 512)
 		f, err := os.Open(abs)
 		if err != nil {
@@ -247,12 +252,104 @@ func New(tokenPath string) *http.ServeMux {
 		}
 		defer f.Close()
 		n, _ := f.Read(buf)
-		mime := http.DetectContentType(buf[:n])
-		w.Header().Set("Content-Type", mime)
-
-		// Stream file contents to response
+		w.Header().Set("Content-Type", http.DetectContentType(buf[:n]))
 		f.Seek(0, 0)
 		http.ServeContent(w, r, filepath.Base(abs), st.ModTime(), f)
+	})
+
+	// ----- COPY -----
+	mux.HandleFunc(tokenPath+"/copy", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var in struct {
+			SourcePaths []string `json:"sourcePaths"`
+			TargetDirs  []string `json:"targetDirs"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			http.Error(w, "bad json", http.StatusBadRequest)
+			return
+		}
+		if len(in.SourcePaths) == 0 || len(in.TargetDirs) == 0 {
+			http.Error(w, "sourcePaths and targetDirs required", http.StatusBadRequest)
+			return
+		}
+
+		state.mu.RLock()
+		srcRoot, dstRoot := state.SourceDir, state.DestRoot
+		state.mu.RUnlock()
+
+		abs := func(p string) string {
+			a, _ := filepath.Abs(p)
+			return a
+		}
+		inRoot := func(root, p string) bool {
+			ar, ap := abs(root), abs(p)
+			// s'assure d'être dans root/...
+			return strings.HasPrefix(ap, ar+string(os.PathSeparator))
+		}
+
+		type Detail struct {
+			File   string `json:"file"`
+			Target string `json:"target,omitempty"`
+			Status string `json:"status"`           // copied | skipped | error
+			Reason string `json:"reason,omitempty"` // already_exists, not_a_file, ...
+		}
+
+		var copied, skipped, errors int
+		details := make([]Detail, 0, len(in.SourcePaths)*len(in.TargetDirs))
+
+		for _, sp := range in.SourcePaths {
+			if !inRoot(srcRoot, sp) {
+				errors++
+				details = append(details, Detail{File: filepath.Base(sp), Status: "error", Reason: "src_out_of_root"})
+				continue
+			}
+			st, err := os.Stat(sp)
+			if err != nil || st.IsDir() {
+				errors++
+				details = append(details, Detail{File: filepath.Base(sp), Status: "error", Reason: "not_a_file"})
+				continue
+			}
+
+			for _, td := range in.TargetDirs {
+				if !inRoot(dstRoot, td) {
+					errors++
+					details = append(details, Detail{File: filepath.Base(sp), Target: td, Status: "error", Reason: "target_out_of_root"})
+					continue
+				}
+				if fi, err := os.Stat(td); err != nil || !fi.IsDir() {
+					errors++
+					details = append(details, Detail{File: filepath.Base(sp), Target: td, Status: "error", Reason: "target_not_dir"})
+					continue
+				}
+
+				dst := filepath.Join(td, filepath.Base(sp))
+				if _, err := os.Stat(dst); err == nil {
+					skipped++
+					details = append(details, Detail{File: filepath.Base(sp), Target: td, Status: "skipped", Reason: "already_exists"})
+					continue
+				}
+
+				if err := fs.CopyFile(sp, dst); err != nil {
+					errors++
+					details = append(details, Detail{File: filepath.Base(sp), Target: td, Status: "error", Reason: err.Error()})
+				} else {
+					copied++
+					details = append(details, Detail{File: filepath.Base(sp), Target: td, Status: "copied"})
+				}
+			}
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"copied":  copied,
+			"skipped": skipped,
+			"errors":  errors,
+			"details": details,
+		})
 	})
 
 	return mux
