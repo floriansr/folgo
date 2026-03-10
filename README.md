@@ -27,12 +27,7 @@ Everything runs locally. No upload, no account, no subscription.
 
 Grab the latest release for your platform from the [Releases page](https://github.com/floriansr/folgo/releases).
 
-```bash
-# macOS (Apple Silicon)
-curl -L https://github.com/floriansr/folgo/releases/latest/download/folgo-darwin-arm64 -o folgo
-chmod +x folgo
-./folgo
-```
+Binaries are available for macOS (ARM & Intel), Linux, and Windows.
 
 ### Build from source
 
