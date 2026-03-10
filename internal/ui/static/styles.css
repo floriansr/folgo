@@ -1,16 +1,23 @@
 /* ------------------ Base ------------------ */
+html, body {
+  height: 100%;
+}
+
 body {
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   background: #f7f7f8;
   color: #222;
+  display: flex;
 }
 
 .layout {
+  flex: 1;
   display: flex;
   flex-direction: row;
   gap: 16px;
   padding: 16px;
+  min-height: 0;
 }
 
 .left,
@@ -21,8 +28,25 @@ body {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
+.right {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  flex: 2;
+
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .left { flex: 3; }
 .right { flex: 2; }
+
+.left-head {
+  display: flex;
+  justify-content: space-between;
+}
 
 h2 {
   margin: 0 0 8px 0;
@@ -185,6 +209,30 @@ button[disabled] {
   justify-content: flex-start;
 }
 
+/* ---- Loupe sur le preview ---- */
+#preview figure {
+  position: relative;
+}
+
+
+/* rond de loupe */
+#magnifier {
+  position: absolute;
+  width: 300px;              /* diamètre de la loupe */
+  height: 300px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,0,0,0.4);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+  pointer-events: none;      /* la souris "passe à travers" */
+  overflow: hidden;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 200% 200%; /* sera recalé en JS */
+  transform: translate(-50%, -50%);
+  display: none;             /* caché par défaut */
+  z-index: 10;
+}
+
 #preview img {
   max-width: 100%;
   max-height: 75vh;
@@ -200,17 +248,67 @@ button[disabled] {
 }
 
 .pager {
-  text-align: center;
-  margin-top: 12px;
   font-size: 0.9rem;
   color: #666;
 }
 
 /* ------------------ Tree ------------------ */
+#tree {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 0.9rem;
+}
+
 #tree ul {
   list-style: none;
   padding-left: 16px;
   margin: 0;
+}
+
+.tree-node {
+  margin: 4px 0;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 1px;
+}
+
+.tree-toggle {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  width: 22px;
+  text-align: center;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  color: #000;
+}
+
+.tree-toggle--empty {
+  cursor: default;
+  opacity: 0;         /* juste pour garder l'alignement */
+}
+
+.tree-toggle:hover {
+  transform: scale(1.1);
+}
+
+#tree .target {
+  cursor: pointer;
+  user-select: none;
+}
+
+#tree .target.selected {
+  font-weight: 600;
+  text-decoration: underline;
 }
 
 #tree li { margin: 2px 0; }
@@ -221,6 +319,20 @@ button[disabled] {
 
 #tree.updating { opacity: 0.5; transition: opacity 0.2s ease; }
 #tree:not(.updating) { opacity: 1; transition: opacity 0.2s ease; }
+
+/* --- MODE MULTI-COLONNES POUR GROUPEMENTS MASSIFS --- */
+.tree-children.columns-2 { column-count: 2; column-gap: 16px; }
+.tree-children.columns-3 { column-count: 3; column-gap: 16px; }
+.tree-children.columns-4 { column-count: 4; column-gap: 16px; }
+.tree-children.columns-5 { column-count: 5; column-gap: 16px; }
+
+/* empêche que les li se coupent au milieu */
+.tree-children > li { break-inside: avoid; }
+
+.tree-children {
+  padding-left: 12px;
+  margin-top: 6px;
+}
 
 /* ------------------ Modal ------------------ */
 .modal {
@@ -254,6 +366,19 @@ button[disabled] {
 
 .modal-actions { display: flex; gap: 8px; }
 
+.sync-option {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.sync-option input {
+  margin: 0;
+}
+
 #dirList {
   list-style: none;
   padding: 0;
@@ -277,21 +402,39 @@ button[disabled] {
 .modal[hidden] { display: none !important; }
 
 /* ------------------ Toasts ------------------ */
-.toast {
+.toast-container {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.toast {
   padding: 10px 14px;
   border-radius: 8px;
   box-shadow: 0 6px 20px rgba(0,0,0,.18);
   color: #0b1426;
   background: #e9eef6;
-  z-index: 9999;
+  min-width: 260px;
+  text-align: center;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity .25s ease, transform .25s ease;
 }
+
 .toast.success { background: #e6f6ec; }
 .toast.warn    { background: #fff7e6; }
 .toast.error   { background: #ffeaea; }
-.toast[hidden] { display: none; }
+
+.toast--hide {
+  opacity: 0;
+  transform: translateY(-10px);
+}
 
 input[readonly] {
   background: #f1f3f5;
@@ -326,7 +469,13 @@ input[readonly] {
   background-color: rgba(0,122,255,0.1);
   border-radius: 6px;
 }
+
 #tree li.highlight-active > .target {
+  color: #007aff;
+  font-weight: 600;
+}
+
+#tree li.highlight-active > .tree-row > .target {
   color: #007aff;
   font-weight: 600;
 }

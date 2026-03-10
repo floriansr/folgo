@@ -9,7 +9,12 @@
   <body>
     <main class="layout">
       <section class="left">
-        <h2>📸 Source</h2>
+        <div class="left-head">
+          <h2>📸 Source</h2>
+          <div class="pager">
+            <span id="pageInfo">📷 0 / 0</span>
+          </div>
+        </div>
 
         <!-- Settings (select folders) -->
         <div class="settings horizontal">
@@ -34,11 +39,6 @@
           <div id="thumbList" aria-label="Thumbnails" role="list"></div>
           <div id="preview" aria-live="polite"></div>
         </div>
-
-        <!-- Counter only -->
-        <div class="pager">
-          <span id="pageInfo">📷 0 / 0</span>
-        </div>
       </section>
 
       <section class="right">
@@ -46,12 +46,16 @@
         <div class="actions-row">
           <button id="refreshTree">Refresh</button>
           <button id="copyBtn" disabled>Copier</button>
+          <label class="sync-option">
+            <input type="checkbox" id="syncTeams" />
+            Lier dossiers d'équipe
+          </label>
         </div>
         <div id="tree"></div>
       </section>
 
-      <!-- Toast -->
-      <div id="toast" class="toast" hidden></div>
+      <!-- Toasts -->
+      <div id="toast-container" class="toast-container"></div>
     </main>
 
     <!-- Folder Browser Modal -->

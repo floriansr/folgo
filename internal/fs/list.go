@@ -3,13 +3,17 @@ package fs
 import (
 	"io/fs"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
 var exts = map[string]bool{
 	".jpg": true, ".jpeg": true, ".png": true, ".heic": true, ".tif": true, ".tiff": true,
 }
+
+var numberRe = regexp.MustCompile(`\d+`)
 
 type FileItem struct {
 	Path  string `json:"path"`
@@ -22,6 +26,20 @@ type Page struct {
 	Items []FileItem `json:"items"`
 	Page  int        `json:"page"`
 	Total int        `json:"total"`
+}
+
+func naturalLess(a, b string) bool {
+	aa := numberRe.FindString(a)
+	bb := numberRe.FindString(b)
+
+	if aa != "" && bb != "" {
+		ai, _ := strconv.Atoi(aa)
+		bi, _ := strconv.Atoi(bb)
+		if ai != bi {
+			return ai < bi
+		}
+	}
+	return a < b
 }
 
 func ListImagesPaged(root string, page, pageSize int) (Page, error) {
@@ -49,12 +67,8 @@ func ListImagesPaged(root string, page, pageSize int) (Page, error) {
 		return Page{}, err
 	}
 
-	// tri simple par mtime desc puis nom
 	sort.Slice(all, func(i, j int) bool {
-		if all[i].Mtime == all[j].Mtime {
-			return all[i].Name < all[j].Name
-		}
-		return all[i].Mtime > all[j].Mtime
+		return naturalLess(all[i].Name, all[j].Name)
 	})
 
 	total := len(all)

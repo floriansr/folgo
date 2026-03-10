@@ -4,12 +4,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif"
+	"image/jpeg"
+	_ "image/png"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/disintegration/imaging"
 
 	"github.com/floriansr/folgo/internal/fs"
 	ui "github.com/floriansr/folgo/internal/ui"
@@ -65,6 +71,34 @@ func getenv(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func serveThumbnail(w http.ResponseWriter, absPath string, st os.FileInfo) {
+	f, err := os.Open(absPath)
+	if err != nil {
+		http.Error(w, "cannot open file", http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		http.Error(w, "cannot decode image", http.StatusInternalServerError)
+		return
+	}
+
+	const maxSize = 480 // largeur/hauteur max pour les vignettes
+
+	thumb := imaging.Fit(img, maxSize, maxSize, imaging.Lanczos)
+
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+
+	// qualité 70 → bon compromis poids/qualité
+	if err := jpeg.Encode(w, thumb, &jpeg.Options{Quality: 70}); err != nil {
+		http.Error(w, "cannot encode thumbnail", http.StatusInternalServerError)
+		return
+	}
 }
 
 /* ---------- HTTP server ---------- */
@@ -170,7 +204,7 @@ func New(tokenPath string) *http.ServeMux {
 		state.mu.RLock()
 		root := state.SourceDir
 		state.mu.RUnlock()
-		pg, err := fs.ListImagesPaged(root, page, 100)
+		pg, err := fs.ListImagesPaged(root, page, 500)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -244,6 +278,13 @@ func New(tokenPath string) *http.ServeMux {
 			return
 		}
 
+		// 👉 mode thumbnail = version allégée pour la liste
+		if r.URL.Query().Get("thumb") == "1" {
+			serveThumbnail(w, abs, st)
+			return
+		}
+
+		// 👉 sinon : comportement original (full image)
 		buf := make([]byte, 512)
 		f, err := os.Open(abs)
 		if err != nil {

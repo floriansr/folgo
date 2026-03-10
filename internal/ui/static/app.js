@@ -3,6 +3,7 @@ const srcInput   = document.getElementById("srcInput");
 const destInput  = document.getElementById("destInput");
 const copyBtn    = document.getElementById("copyBtn");
 const refreshTreeBtn = document.getElementById("refreshTree");
+const syncTeamsCheckbox = document.getElementById("syncTeams");
 
 const selectedTargets = new Set();   // selected destination folders
 let selected = new Set();            // multi-selected source image paths
@@ -95,16 +96,76 @@ function renderPreview() {
   }
 }
 
+const MAGNIFIER_ZOOM = 5; // facteur de zoom
+
+function attachMagnifier(imgEl, imgSrc) {
+  const figure = imgEl.closest("figure");
+  if (!figure) return;
+
+  // crée une seule loupe par preview
+  let mag = document.getElementById("magnifier");
+  if (!mag) {
+    mag = document.createElement("div");
+    mag.id = "magnifier";
+    figure.appendChild(mag);
+  } else if (!figure.contains(mag)) {
+    figure.appendChild(mag);
+  }
+
+  mag.style.display = "none";
+  mag.style.backgroundImage = `url("${imgSrc}")`;
+
+  // pour ne pas ré-attacher des listeners à chaque render
+  if (imgEl._magnifierAttached) return;
+  imgEl._magnifierAttached = true;
+
+  imgEl.addEventListener("mouseenter", () => {
+    mag.style.display = "block";
+  });
+
+  imgEl.addEventListener("mouseleave", () => {
+    mag.style.display = "none";
+  });
+
+  imgEl.addEventListener("mousemove", (ev) => {
+    const rect = imgEl.getBoundingClientRect();
+    const x = ev.clientX - rect.left;
+    const y = ev.clientY - rect.top;
+
+    // Position de la loupe au-dessus de l’image
+    mag.style.left = `${x}px`;
+    mag.style.top = `${y}px`;
+
+    // pourcentage dans l’image
+    const px = (x / rect.width) * 100;
+    const py = (y / rect.height) * 100;
+
+    // taille du background (zoom)
+    const bgW = rect.width * MAGNIFIER_ZOOM;
+    const bgH = rect.height * MAGNIFIER_ZOOM;
+    mag.style.backgroundSize = `${bgW}px ${bgH}px`;
+
+    // position dans le background
+    mag.style.backgroundPosition = `${px}% ${py}%`;
+  });
+}
+
 function updatePreview(el, current, esc) {
+  const imgSrc = `${base}/thumb?path=${encodeURIComponent(current.path)}`;
+
   el.innerHTML = `
     <figure>
-      <img src="${base}/thumb?path=${encodeURIComponent(current.path)}" 
+      <img src="${imgSrc}"
            alt="${esc(current.name)}"
            style="opacity:0; transition:opacity .25s ease-in-out;">
       <figcaption>${esc(current.name)}</figcaption>
     </figure>
   `;
   const img = el.querySelector("img");
+
+  // 👉 on attache la loupe ici
+  attachMagnifier(img, imgSrc);
+
   requestAnimationFrame(() => { img.style.opacity = "1"; });
   updateCounter();
 }
@@ -118,9 +179,10 @@ function renderThumbList(firstInit = false) {
     el.innerHTML = items.map((item, i) => `
       <div class="thumb" tabindex="0" data-index="${i}" data-path="${encodeURIComponent(item.path)}">
         <img
-          src="${base}/thumb?path=${encodeURIComponent(item.path)}"
+          src="${base}/thumb?path=${encodeURIComponent(item.path)}&thumb=1"
           alt="${escapeHtml(item.name)}"
           draggable="false"
+          loading="lazy"
         />
       </div>
     `).join("");
@@ -274,16 +336,32 @@ async function loadTree(rootOverride) {
     const tree = await res.json();
 
     const treeEl = document.getElementById("tree");
-    treeEl.innerHTML = renderNode(tree);
+    treeEl.innerHTML = renderTree(tree);
 
     // Restore click handlers every refresh
-    treeEl.querySelectorAll('.target').forEach(span => {
-      span.onclick = () => {
-        const p = decodeURIComponent(span.dataset.path);
-        if (selectedTargets.has(p)) selectedTargets.delete(p);
-        else selectedTargets.add(p);
-        span.classList.toggle('selected');
-        updateCopyButtonState();
+    treeEl.querySelectorAll(".target").forEach(span => {
+      span.onclick = () => handleTargetClick(span);
+    });
+
+    // 👉 gestion des dropdowns
+    treeEl.querySelectorAll(".tree-toggle").forEach(btn => {
+      // on ignore les "fake" toggles sur les feuilles
+      if (btn.classList.contains("tree-toggle--empty")) return;
+
+      btn.onclick = (ev) => {
+        ev.stopPropagation();
+        const li = btn.closest(".tree-node");
+        if (!li) return;
+
+        const isExpanded = li.classList.toggle("expanded");
+        li.classList.toggle("collapsed", !isExpanded);
+
+        const children = li.querySelector(":scope > .tree-children");
+        if (children) {
+          children.hidden = !isExpanded;
+        }
+
+        btn.textContent = isExpanded ? "▾" : "▸";
       };
     });
 
@@ -295,20 +373,87 @@ async function loadTree(rootOverride) {
   }
 }
 
-function renderNode(n) {
-  if (!n) return "";
-  const children = (n.children || []).map(renderNode).join("");
-  const isSel = selectedTargets.has(n.path);
+function renderNode(node, depth = 0) {
+  if (!node) return "";
+
+  const childrenArr = (node.children || []).slice().sort(compareNodesByName);
+  const hasChildren = childrenArr.length > 0;
+
+  let colClass = "";
+  if (hasChildren) {
+    if (childrenArr.length > 120) colClass = "columns-5";
+    else if (childrenArr.length > 90) colClass = "columns-4";
+    else if (childrenArr.length > 60) colClass = "columns-3";
+    else if (childrenArr.length > 30) colClass = "columns-2";
+  }
+
+  const isExpanded = depth === 0;
+  const isSel = selectedTargets.has(node.path);
+
+  const childrenHtml = hasChildren
+    ? `
+      <ul class="tree-children ${colClass}" ${isExpanded ? "" : "hidden"}>
+        ${childrenArr.map(child => renderNode(child, depth + 1)).join("")}
+      </ul>
+    `
+    : "";
+
+  const toggleHtml = hasChildren
+    ? `<button class="tree-toggle">${isExpanded ? "▾" : "▸"}</button>`
+    : `<span class="tree-toggle tree-toggle--empty"></span>`;
+
   return `
-    <ul>
-      <li>
-        <span class="target ${isSel ? 'selected' : ''}"
-              data-path="${encodeURIComponent(n.path)}">${escapeHtml(n.name)}</span>
-        ${children}
-      </li>
-    </ul>
+    <li class="tree-node ${isExpanded ? "expanded" : "collapsed"}" data-path="${encodeURIComponent(node.path)}">
+      <div class="tree-row">
+        ${toggleHtml}
+        <span class="target ${isSel ? "selected" : ""}"
+              data-path="${encodeURIComponent(node.path)}"
+              data-name="${escapeHtml(node.name)}">
+          ${escapeHtml(node.name)}
+        </span>
+      </div>
+      ${childrenHtml}
+    </li>
   `;
 }
+
+function compareNodesByName(a, b) {
+  const na = a.name;
+  const nb = b.name;
+
+  const digitOnly = /^\d+$/;
+  const aIsNum = digitOnly.test(na);
+  const bIsNum = digitOnly.test(nb);
+
+  // Si les deux sont *uniquement* des chiffres → compare en entier
+  if (aIsNum && bIsNum) {
+    return Number(na) - Number(nb);
+  }
+
+  // Sinon, fallback sur un tri alpha "normal"
+  return na.localeCompare(nb, undefined, {
+    sensitivity: "base",
+  });
+}
+
+function renderTree(root) {
+  if (!root) return "";
+  return `<ul class="tree-root">
+    ${renderNode(root, 0)}
+  </ul>`;
+}
+
+function isTargetVisible(el) {
+  let parent = el.parentElement;
+  while (parent) {
+    if (parent.classList && parent.classList.contains("tree-children") && parent.hidden) {
+      return false;
+    }
+    parent = parent.parentElement;
+  }
+  return true;
+}
+
 
 /* ---------- Bouton copier & toasts ---------- */
 function updateCopyButtonState() {
@@ -317,13 +462,55 @@ function updateCopyButtonState() {
   copyBtn.disabled = (selectedTargets.size === 0 || (!hasSelection && !hasActive));
 }
 
-function showToast(kind, text, ms=4000){
-  const el = document.getElementById('toast');
+function handleTargetClick(span) {
+  const path = decodeURIComponent(span.dataset.path);
+  const name = (span.dataset.name || span.textContent || "").trim();
+
+  const currentlySelected = selectedTargets.has(path);
+  const shouldSelect = !currentlySelected;
+
+  if (syncTeamsCheckbox && syncTeamsCheckbox.checked && name !== "") {
+    const allSameName = Array.from(document.querySelectorAll("#tree .target"))
+      .filter(el => (el.dataset.name || el.textContent || "").trim() === name)
+      .filter(el => isTargetVisible(el));
+
+    allSameName.forEach(el => {
+      const p2 = decodeURIComponent(el.dataset.path);
+      if (shouldSelect) {
+        selectedTargets.add(p2);
+      } else {
+        selectedTargets.delete(p2);
+      }
+      el.classList.toggle("selected", shouldSelect);
+    });
+  } else {
+    if (shouldSelect) selectedTargets.add(path);
+    else selectedTargets.delete(path);
+    span.classList.toggle("selected", shouldSelect);
+  }
+
+  updateCopyButtonState();
+}
+
+function showToast(kind, text, ms = 4000) {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+
+  const el = document.createElement("div");
   el.className = `toast ${kind}`;
   el.textContent = text;
-  el.hidden = false;
-  clearTimeout(el._t); el._t = setTimeout(()=> el.hidden = true, ms);
+  container.appendChild(el);
+
+  setTimeout(() => {
+    el.classList.add("toast--hide");
+    setTimeout(() => {
+      if (el.parentNode === container) {
+        container.removeChild(el);
+      }
+    }, 250);
+  }, ms);
 }
+
 
 copyBtn.onclick = async () => {
   copyBtn.disabled = true;
@@ -332,6 +519,18 @@ copyBtn.onclick = async () => {
   const toCopy = new Set(selected);
   if (items.length > 0 && currentIndex >= 0) {
     toCopy.add(items[currentIndex].path);
+  }
+
+  let nextIndex = currentIndex;
+  if (toCopy.size > 0) {
+    let maxIdx = -1;
+    for (const p of toCopy) {
+      const idx = items.findIndex(it => it.path === p);
+      if (idx > maxIdx) maxIdx = idx;
+    }
+    if (maxIdx >= 0) {
+      nextIndex = Math.min(maxIdx + 1, items.length - 1);
+    }
   }
 
   const payload = {
@@ -350,25 +549,60 @@ copyBtn.onclick = async () => {
       return;
     }
 
-    const {copied=0, skipped=0, errors=0} = await res.json();
+    const { copied = 0, skipped = 0, errors = 0, details = [] } = await res.json();
+
+    const perTarget = new Map();
+
+    for (const d of details) {
+      if (d.status !== "copied") continue;
+      const target = d.target || "";
+      if (!target) continue;
+      perTarget.set(target, (perTarget.get(target) || 0) + 1);
+    }
+
+    function humanDestLabel(targetPath) {
+      const parts = targetPath.split(/[/\\]+/).filter(Boolean);
+      const last = parts.slice(-3);
+      return last.join(" > ");
+    }
+
+    for (const [target, count] of perTarget.entries()) {
+      const label = humanDestLabel(target);
+      const plural = count > 1 ? "s" : "";
+      showToast(
+        "success",
+        `✅ ${count} photo${plural} vers ${label}`
+      );
+    }
+
     if (errors > 0) {
-      showToast('error',  `❌ Terminé avec erreurs — ${copied} copiés, ${skipped} ignorés, ${errors} erreurs.`);
-    } else if (skipped > 0) {
-      showToast('warn',   `⚠️ Partiel — ${copied} copiés, ${skipped} ignorés (déjà présents).`);
-    } else {
-      showToast('success',`✅ Copie terminée — ${copied} copiés.`);
+      showToast(
+        "error",
+        `❌ Terminé avec erreurs — ${copied} copiées, ${skipped} ignorées, ${errors} erreurs.`
+      );
+    } else if (skipped > 0 && copied === 0 && perTarget.size === 0) {
+      showToast(
+        "warn",
+        `⚠️ Aucune nouvelle copie — ${skipped} fichier(s) déjà présent(s).`
+      );
     }
 
     clearSelection();
 
+    selectedTargets.clear();
+    const treeEl = document.getElementById("tree");
+    if (treeEl) {
+      treeEl.querySelectorAll(".target.selected").forEach(span => {
+        span.classList.remove("selected");
+      });
+    }
+    updateCopyButtonState();
+
     if (items.length) {
-      currentIndex = (currentIndex + 1) % items.length;
+      currentIndex = nextIndex;
       renderPreview();
       scrollThumbIntoView();
     }
-
-    await loadTree();
-
   } catch (e) {
     console.error(e);
     showToast('error', '❌ Copie échouée (erreur réseau).');
