@@ -4,7 +4,7 @@
 
 Think: 5 photographers, 6 days of racing in Thailand, photos to deliver by team. Folgo replaces the painful macOS Finder workflow (ctrl+click, right-click, alt+copy...) with a clean web UI designed for speed.
 
-![Folgo UI](https://github.com/floriansr/folgo/assets/placeholder-screenshot.png)
+![Folgo UI](assets/placeholder-screenshot.png)
 
 ---
 
